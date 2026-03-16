@@ -1,0 +1,4 @@
+*.numbers
+rate_cache.json
+settings.json
+*.db

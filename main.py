@@ -25,6 +25,9 @@ message_parser = MessageParser(
     data_modifier)
 parsed_messages = message_parser.parse(messages)
 table_writer = TableWriter(
-    doc_path=Path("./BankMessages.numbers")
+    doc_path=Path("./BankMessages.numbers"),
+    sheet_name=settings["TableWriterPreset"]["sheet_name"],
+    table_name=settings["TableWriterPreset"]["table_name"],
+    apple_scripts=settings["TableWriterPreset"]["apple_scripts"]
 )
 table_writer.write(parsed_messages)

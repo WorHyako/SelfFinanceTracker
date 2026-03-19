@@ -1,7 +1,9 @@
 import applescript
 from pathlib import Path
 from dataclasses import dataclass
+import textwrap
 
+from src import applescript_compiler
 from src.models import ParsedMessage
 
 
@@ -12,110 +14,99 @@ class TableWriter:
     table_name: str
     script_str: list[str]
     target_row: int
+    _apple_scripts: dict[str, str] | None
 
     def __init__(self,
                  doc_path: Path,
                  table_name: str = "Table 1",
-                 sheet_name: str = "Sheet 1") -> None:
+                 sheet_name: str = "Sheet 1",
+                 apple_scripts: list[Path] = None) -> None:
         self.doc_path: Path = doc_path
         self.sheet_name: str = sheet_name
         self.table_name: str = table_name
         self.script_str: list[str] = []
         self.target_row: int = -1
+        self._load_apple_scripts(apple_scripts)
+
+    def _load_apple_scripts(self, paths: list[Path] = []) -> None:
+        if paths is None:
+            return None
+        self._apple_scripts = {}
+        for str_path in paths:
+            path: Path = Path(str_path)
+            with open(path, 'r') as f:
+                raw_apple_script = f.read()
+                self._apple_scripts[path.stem] = raw_apple_script
+        return None
 
     def _get_start_row_idx(self) -> int:
         self._open_sheet()
-            # repeat with i from 2 to maxRows
-            # 	if value of cell ("A" & i) is missing value then
-            # 		return i
-            # 	end if
-            # end repeat
 
-        self.script_str.append(f'''
+        self._add_to_script(f'''
             set maxRows to row count
             return maxRows + 1
             ''')
         self._close_sheet()
-        script = "\n".join(self.script_str)
+        script = '\n'.join(self.script_str)
         self.script_str.clear()
         result = applescript.run(script)
         last_row = int(result.out)
         return last_row
 
+    def _add_to_script(self, script: str) -> None:
+        script = textwrap.dedent(script).strip()
+        self.script_str.append(script.replace('\n\n', '\n'))
+
     def _add_row(self, message: ParsedMessage) -> None:
         amount = str(message.amount).replace('.', ',')
 
-        self.script_str.append(f'''
-            set amountValue to "{amount} {message.amount_currency}"
-            set dateValue to "{message.operation_date}"
-            set merchantValue to "{message.merchant}"
-            
-			set foundDateCell to first item of (every cell of range ("A2:A" & maxRows) whose (formatted value) is dateValue)
-            if foundDateCell is missing value then
-    			set foundMerchantCell to first item of (every cell of range ("A2:A" & maxRows) whose (formatted value) is merchantValue)
-                if foundMerchantCell is missing value then
-                    log "Row {{dataValue, amountValue, _, _, merchantValue}} will be written"
-                    add row below row {self.target_row - 1}
-                    set rowRange to range "A{self.target_row}:E{self.target_row}"
-                else
-                    log "Row {{dataValue, amountValue, _, _, merchantValue}} exists already"
-                end if
-                
-                set newValues to {{dataValue, amountValue, _, _, merchantValue}}
-                set value of cells of rowRange to newValues
-            else
-				log "Row {{dataValue, amountValue, _, _, merchantValue}} exists already"
-            end if
+        self._add_to_script(f'''
+            my writeRow("{self.table_name}", "{self.sheet_name}", {self.target_row}, "{message.operation_date}", "{amount} {message.amount_currency}", "{message.merchant}")
             ''')
-        # self.script_str.append(f'''
-        #     tell cell ("A" & {self.target_row})
-        #         set value to "dateValue"
-        #         set format to date and time
-        #     end tell
-        #     tell cell ("E" & {self.target_row})
-        #         set value to "merchantValue"
-        #         set format to text
-        #     end tell
-        #     tell cell ("B" & {self.target_row})
-        #         set value to "{amount} {message.amount_currency}"
-        #         set format to currency
-        #     end tell
+
+        # self._add_to_script(f'''
+        #     set amountValue to "{amount} {message.amount_currency}"
+        #     set dateValue to "{message.operation_date}"
+        #     set merchantValue to "{message.merchant}"
+        #     set newValues to {{dateValue, amountValue, missing value, missing value, merchantValue}}
+        #
+        #     set hasDate to exists (first cell of range ("A2:A" & maxRows) whose (formatted value) is dateValue)
+        #     set hasMerchant to exists (first cell of range ("E2:E" & maxRows) whose (formatted value) is merchantValue)
+        #
+        #     if (not hasDate) and (not hasMerchant) then
+        #         add row below row {self.target_row - 1}
+        #         set rowRange to last row
+        #         set value of cells of rowRange to newValues
+        #         log "Row " & newValues & " written"
+        #     else
+        #         log "Row " & newValues & " exists already"
+        #     end if
         #     ''')
         self.target_row += 1
 
     def _open_sheet(self) -> None:
-        self.script_str.append(
+        self._add_to_script(
             f'''
-            tell application "Numbers"
-                tell front document
-                    tell table "{self.table_name}" of sheet "{self.sheet_name}"
+            tell application "Numbers" to tell table "{self.table_name}" of sheet "{self.sheet_name}" of front document
             ''')
 
     def _close_sheet(self) -> None:
-        self.script_str.append(
+        self._add_to_script(
             '''
-                    end tell
-                end tell
             end tell
             ''')
 
     def write(self, messages: list[ParsedMessage]) -> None:
         self.target_row = self._get_start_row_idx()
 
+        self.script_str.append(self._apple_scripts['row_filler'])
         self._open_sheet()
-        # self.script_str.append(
-        #     f'''
-        #     set rowsToAdd to {len(messages)}
-        #     repeat rowsToAdd times
-        #         add row below last row
-        #     end repeat
-        #     ''')
 
         idx: int = 1
         max_idx: int = len(messages)
-        self.script_str.append('''
+        self._add_to_script('''
 			set maxRows to row count
-        ''')
+            ''')
         for message in messages:
             print(f"preparing {idx}/{max_idx} message")
             self._add_row(message)
@@ -123,7 +114,20 @@ class TableWriter:
         self._close_sheet()
 
         script = '\n'.join(self.script_str)
+
         self.script_str.clear()
-        result = applescript.run(script)
-        print(result.err)
-        return result
+
+        script_file: Path = Path("./") / "applescripts" / "out_script.applescript"
+        script_file.parent.mkdir(parents=True, exist_ok=True)
+        script_file.write_text("", encoding="utf-8")
+
+        with open(script_file, "w") as f:
+            f.write(script)
+
+        try:
+            applescript_compiler.compile_applescript(script_file)
+        except RuntimeError as error:
+            print(f"Failed to compile applescript:\n{error}")
+            print("Trying to run applescript without compilation")
+            result = applescript.run(script)
+            print(result.err)

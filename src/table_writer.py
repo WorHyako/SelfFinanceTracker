@@ -61,7 +61,7 @@ class TableWriter:
         amount = str(message.amount).replace('.', ',')
 
         self._add_to_script(f'''
-            my writeRow("{self.table_name}", "{self.sheet_name}", {self.target_row}, "{message.operation_date}", "{amount} {message.amount_currency}", "{message.merchant}")
+            RowFiller's writeRow("{self.table_name}", "{self.sheet_name}", "{message.operation_date}", "{amount} {message.amount_currency}", "{message.merchant}")
             ''')
 
         # self._add_to_script(f'''
@@ -98,20 +98,15 @@ class TableWriter:
 
     def write(self, messages: list[ParsedMessage]) -> None:
         self.target_row = self._get_start_row_idx()
+        max_idx: int = len(messages)
+        idx: int = 1
 
         self.script_str.append(self._apple_scripts['row_filler'])
-        self._open_sheet()
 
-        idx: int = 1
-        max_idx: int = len(messages)
-        self._add_to_script('''
-			set maxRows to row count
-            ''')
         for message in messages:
             print(f"preparing {idx}/{max_idx} message")
             self._add_row(message)
             idx += 1
-        self._close_sheet()
 
         script = '\n'.join(self.script_str)
 

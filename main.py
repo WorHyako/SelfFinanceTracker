@@ -3,13 +3,15 @@ import json
 
 from src.fetcher import MessageFetcher
 from src.parser import MessageParser
-from src.table_writer import TableWriter
 from src.modifier import Modifier, TargetTypes
+from src.table import Table
+
+table = Table()
 
 file_path = Path.cwd() / "settings.json"
 
 try:
-    settings = json.loads(file_path.read_text(encoding='utf-8'))
+    settings = json.loads(file_path.read_text(encoding="utf-8"))
 except (OSError, json.JSONDecodeError):
     exit(1)
 
@@ -24,10 +26,6 @@ message_parser = MessageParser(
     settings["ParserPreset"]["contacts"],
     data_modifier)
 parsed_messages = message_parser.parse(messages)
-table_writer = TableWriter(
-    doc_path=Path("./BankMessages.numbers"),
-    sheet_name=settings["TableWriterPreset"]["sheet_name"],
-    table_name=settings["TableWriterPreset"]["table_name"],
-    apple_scripts=settings["TableWriterPreset"]["apple_scripts"]
-)
-table_writer.write(parsed_messages)
+
+table.sync()
+table.write(parsed_messages)

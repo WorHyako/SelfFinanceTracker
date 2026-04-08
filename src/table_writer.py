@@ -1,10 +1,12 @@
+import datetime
+
 import applescript
 from pathlib import Path
 from dataclasses import dataclass
 import textwrap
 
 from src import applescript_compiler
-from src.models import ParsedMessage
+from src.table_parser import TableRow, RowValues
 
 
 @dataclass(slots=True)
@@ -28,9 +30,9 @@ class TableWriter:
         self.target_row: int = -1
         self._load_apple_scripts(apple_scripts)
 
-    def _load_apple_scripts(self, paths: list[Path] = []) -> None:
+    def _load_apple_scripts(self, paths: list[Path] = None) -> None:
         if paths is None:
-            return None
+            paths = []
         self._apple_scripts = {}
         for str_path in paths:
             path: Path = Path(str_path)
@@ -42,12 +44,12 @@ class TableWriter:
     def _get_start_row_idx(self) -> int:
         self._open_sheet()
 
-        self._add_to_script(f'''
+        self._add_to_script("""
             set maxRows to row count
             return maxRows + 1
-            ''')
+            """)
         self._close_sheet()
-        script = '\n'.join(self.script_str)
+        script = "\n".join(self.script_str)
         self.script_str.clear()
         result = applescript.run(script)
         last_row = int(result.out)
@@ -57,32 +59,14 @@ class TableWriter:
         script = textwrap.dedent(script).strip()
         self.script_str.append(script.replace('\n\n', '\n'))
 
-    def _add_row(self, message: ParsedMessage) -> None:
-        amount = str(message.amount).replace('.', ',')
-
+    def _add_row(self, row: TableRow):
+        amount = str(row.amount()).replace(".", ",")
+        operation_date: datetime.date = row.date()
+        date_str = operation_date.strftime("%Y-%m-%d %H:%M:%S")
+        merchant = row.merchant()
         self._add_to_script(f'''
-            RowFiller's writeRow("{self.table_name}", "{self.sheet_name}", "{message.operation_date}", "{amount} {message.amount_currency}", "{message.merchant}")
+            RowFiller's writeRow("{self.table_name}", "{self.sheet_name}", "{date_str}", "{amount}", "{merchant}")
             ''')
-
-        # self._add_to_script(f'''
-        #     set amountValue to "{amount} {message.amount_currency}"
-        #     set dateValue to "{message.operation_date}"
-        #     set merchantValue to "{message.merchant}"
-        #     set newValues to {{dateValue, amountValue, missing value, missing value, merchantValue}}
-        #
-        #     set hasDate to exists (first cell of range ("A2:A" & maxRows) whose (formatted value) is dateValue)
-        #     set hasMerchant to exists (first cell of range ("E2:E" & maxRows) whose (formatted value) is merchantValue)
-        #
-        #     if (not hasDate) and (not hasMerchant) then
-        #         add row below row {self.target_row - 1}
-        #         set rowRange to last row
-        #         set value of cells of rowRange to newValues
-        #         log "Row " & newValues & " written"
-        #     else
-        #         log "Row " & newValues & " exists already"
-        #     end if
-        #     ''')
-        self.target_row += 1
 
     def _open_sheet(self) -> None:
         self._add_to_script(
@@ -91,24 +75,20 @@ class TableWriter:
             ''')
 
     def _close_sheet(self) -> None:
-        self._add_to_script(
-            '''
-            end tell
-            ''')
+        self._add_to_script("end tell")
 
-    def write(self, messages: list[ParsedMessage]) -> None:
-        self.target_row = self._get_start_row_idx()
-        max_idx: int = len(messages)
+    def write(self, rows: list[TableRow]) -> None:
+        max_idx: int = len(rows)
         idx: int = 1
 
-        self.script_str.append(self._apple_scripts['row_filler'])
+        self.script_str.append(self._apple_scripts["row_filler"])
 
-        for message in messages:
+        for row in rows:
             print(f"preparing {idx}/{max_idx} message")
-            self._add_row(message)
+            self._add_row(row)
             idx += 1
 
-        script = '\n'.join(self.script_str)
+        script = "\n".join(self.script_str)
 
         self.script_str.clear()
 

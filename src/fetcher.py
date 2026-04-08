@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from src.models import RawMessage
 
+
 @dataclass(slots=True)
 class IMessageFetcher(ABC):
     db_path: Path
@@ -33,14 +34,11 @@ class MessageFetcher(IMessageFetcher):
             account = "" if len(row) < 5 or row[4] is None else str(row[4])
             is_from_me = bool(row[5]) if len(row) > 5 else False
 
-            result.append(
-                RawMessage(
-                    user_id=user_id,
-                    text=text,
-                    date=date,
-                    service=service,
-                    account=account,
-                    is_from_me=is_from_me
-                )
-            )
+            result.append(RawMessage(
+                user_id=user_id,
+                text=text,
+                date=date,
+                service=service,
+                account=account,
+                is_from_me=is_from_me))
         return result

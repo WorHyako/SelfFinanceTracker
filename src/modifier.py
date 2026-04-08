@@ -29,7 +29,7 @@ class ExchangeRateCache:
     @staticmethod
     def _make_rate_key(from_currency: str,
                        to_currency: str) -> str:
-        return f'{from_currency}|{to_currency}'
+        return f"{from_currency}|{to_currency}"
 
     def set(self,
             date: str,
@@ -56,14 +56,14 @@ class ExchangeRateCache:
         payload = dict(sorted(self._rates.items()))
         self.cache_file.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding='utf-8')
+            encoding="utf-8")
 
     def load(self) -> None:
         if not self.cache_file.exists():
             self._rates = {}
 
         try:
-            raw_text = self.cache_file.read_text(encoding='utf-8')
+            raw_text = self.cache_file.read_text(encoding="utf-8")
             raw = json.loads(raw_text)
         except (OSError, json.JSONDecodeError):
             self._rates = {}
@@ -117,18 +117,16 @@ class Modifier:
 
         request_date = date_time
         while exchange_rate is None:
-            url = (
-                f"https://cdn.jsdelivr.net/npm/@fawazahmed0/"
-                f"currency-api@{self._normalize_date(request_date)}/v1/"
-                f"currencies/{from_currency}.json"
-            )
+            url = (f"https://cdn.jsdelivr.net/npm/@fawazahmed0/"
+                   f"currency-api@{self._normalize_date(request_date)}/v1/"
+                   f"currencies/{from_currency}.json")
 
             try:
                 response = requests.get(url, timeout=10)
                 response.raise_for_status()
             except requests.HTTPError:
                 request_date -= timedelta(days=1)
-                print(f'trying find rate at {request_date.strftime("%Y-%m-%d")}')
+                print(f"trying find rate at {request_date.strftime("%Y-%m-%d")}")
                 continue
 
             data = response.json()
@@ -168,7 +166,7 @@ class Modifier:
         value.amount_currency = to_currency.upper()
         value.balance_currency = to_currency.upper()
 
-        if self._default_types[TargetTypes.amount_sign] == '-':
+        if self._default_types[TargetTypes.amount_sign] == "-":
             if value.amount > 0:
                 value.amount = -value.amount
         else:

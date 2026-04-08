@@ -4,9 +4,8 @@
 {
   "ParserPreset": {
     "contacts": [
-      "contact 1",
-      "contact 2",
-      "contact 3"
+      "contact1",
+      "contact2"
     ]
   },
   "ModifierPreset": {
@@ -15,7 +14,18 @@
   },
   "FetcherPreset": {
     "db_path": "./chat.db"
+  },
+  "TablePreset": {
+    "table_name": "Table 1",
+    "sheet_name": "Sheet 1",
+    "apple_scripts": {
+      "parser": [
+        "applescripts/table_parser.applescript"
+      ],
+      "writer": [
+        "applescripts/row_filler.applescript"
+      ]
+    }
   }
 }
-
 ```
